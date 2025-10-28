@@ -94,10 +94,10 @@ Image::Image(const char* fmt_filename, ...)
 // Copies the other image
 
 Image::Image(const Image& other)
-	:width(other.width), height(other.height)
+	:width_(other.width_), height_(other.height_)
 {
-	Pixels = (Color*)calloc(width * height, sizeof(Color));
-	memcpy(Pixels, other.Pixels, width * height * sizeof(Color));
+	pixels_ = (Color*)calloc(width_ * height_, sizeof(Color));
+	memcpy(pixels_, other.pixels_, width_ * height_ * sizeof(Color));
 }
 
 // Copies the other image
@@ -107,13 +107,13 @@ Image& Image::operator=(const Image& other)
     if (&other == this) 
         return *this;
 
-    if (Pixels) 
-        free(Pixels);
+    if (pixels_)
+        free(pixels_);
 
-    width = other.width;
-    height = other.height;
-    Pixels = (Color*)calloc(width * height, sizeof(Color));
-    memcpy(Pixels, other.Pixels, width * height * sizeof(Color));
+    width_ = other.width_;
+    height_ = other.height_;
+    pixels_ = (Color*)calloc(width_ * height_, sizeof(Color));
+    memcpy(pixels_, other.pixels_, width_ * height_ * sizeof(Color));
 
     return *this;
 }
@@ -121,24 +121,24 @@ Image& Image::operator=(const Image& other)
 // Stores a copy of the color pointer
 
 Image::Image(Color* pixels, unsigned int width, unsigned int height)
-    :width{ width }, height{ height }, Pixels{ (Color*)calloc(width * height, sizeof(Color)) }
+    :width_{ width }, height_{ height }, pixels_{ (Color*)calloc(width * height, sizeof(Color)) }
 {
-    memcpy(Pixels, pixels, width * height * sizeof(Color));
+    memcpy(pixels_, pixels, width * height * sizeof(Color));
 }
 
 // Creates an image with the specified size and color
 
 Image::Image(unsigned int w, unsigned int h, Color color)
 {
-    width = w;
-    height = h;
+    width_ = w;
+    height_ = h;
 
-    Pixels = (Color*)calloc(width * height, sizeof(Color));
+    pixels_ = (Color*)calloc(width_ * height_, sizeof(Color));
     
     if (color != Color::Transparent)
     {
-        for (unsigned int i = 0; i < width * height; i++)
-            Pixels[i] = color;
+        for (unsigned int i = 0; i < width_ * height_; i++)
+            pixels_[i] = color;
     }
 }
 
@@ -146,7 +146,7 @@ Image::Image(unsigned int w, unsigned int h, Color color)
 
 Image::~Image()
 {
-	free(Pixels);
+	free(pixels_);
 }
 
 /*
@@ -157,37 +157,37 @@ User end functions
 
 // Returns the pointer to the image pixels as a color array
 
-Color* Image::getPixels()
+Color* Image::pixels()
 {
-    return Pixels;
+    return pixels_;
 }
 
 // Returns the image width
 
-unsigned Image::getWidth() const
+unsigned Image::width() const
 {
-    return width;
+    return width_;
 }
 
 // Returns the image height
 
-unsigned Image::getHeight() const
+unsigned Image::height() const
 {
-    return height;
+    return height_;
 }
 
 // Returns a color reference to the specified pixel coordinates
 
 Color& Image::operator()(unsigned int row, unsigned int col)
 {
-    return Pixels[row * width + col];
+    return pixels_[row * width_ + col];
 }
 
 // Returns a constant color reference to the specified pixel coordinates
 
 const Color& Image::operator()(unsigned int row, unsigned int col) const
 {
-    return Pixels[row * width + col];
+    return pixels_[row * width_ + col];
 }
 
 /*
@@ -228,8 +228,8 @@ bool Image::save(const char* fmt_filename, ...) const
     const uint32_t bytes_per_pixel = 4u;
 
     // BMP rows are aligned to 4 bytes. For 32bpp stride == width*4 already aligned.
-    const uint32_t row_stride = width * bytes_per_pixel;
-    const uint32_t pixel_data_size = row_stride * height;
+    const uint32_t row_stride = width_ * bytes_per_pixel;
+    const uint32_t pixel_data_size = row_stride * height_;
 
     // --- FILE HEADER (14 bytes) ---
     // Signature "BM"
@@ -248,8 +248,8 @@ bool Image::save(const char* fmt_filename, ...) const
 
     // --- DIB HEADER: BITMAPINFOHEADER (40 bytes) ---
     write_le32(file, 40u);                 // biSize
-    write_le32(file, (uint32_t)width);     // biWidth
-    write_le32(file, (uint32_t)height);    // biHeight (positive => bottom-up)
+    write_le32(file, (uint32_t)width_);    // biWidth
+    write_le32(file, (uint32_t)height_);   // biHeight (positive => bottom-up)
     write_le16(file, 1u);                  // biPlanes
     write_le16(file, bpp);                 // biBitCount
     write_le32(file, 0u);                  // biCompression (BI_RGB = 0)
@@ -262,13 +262,13 @@ bool Image::save(const char* fmt_filename, ...) const
     // --- Pixel data (bottom-up BGR[A]) ---
 
     uint8_t* row = (uint8_t*)calloc(row_stride, sizeof(uint8_t));
-    for (int y = (int)height - 1; y >= 0; --y)
+    for (int y = (int)height_ - 1; y >= 0; --y)
     {
         uint8_t* out = row;
-        const Color* in = &Pixels[(size_t)y * width];
+        const Color* in = &pixels_[(size_t)y * width_];
 
             // BGRA
-        for (unsigned x = 0; x < width; ++x)
+        for (unsigned x = 0; x < width_; ++x)
         {
             *out++ = in[x].B;
             *out++ = in[x].G;
@@ -347,7 +347,7 @@ bool Image::load(const char* fmt_filename, ...)
     (void)read_le32(file); // biClrUsed
     (void)read_le32(file); // biClrImportant
 
-    if (biPlanes != 1 || (biBitCount != 24 && biBitCount != 32) || biCompression != 0) 
+    if (biPlanes != 1 || (biBitCount != 24 && biBitCount != 32) || (biCompression != 0 && biCompression != 3))
     {
         fclose(file);
         return false; // only uncompressed 24/32-bit
@@ -367,18 +367,25 @@ bool Image::load(const char* fmt_filename, ...)
     const uint32_t row_stride = ((w * bytes_per_pixel + 3u) / 4u) * 4u;
 
     // allocate
-    if (Pixels) { free(Pixels); Pixels = nullptr; }
-    width = w; height = h;
-    Pixels = (Color*)calloc((size_t)w * h, sizeof(Color));
+    if (pixels_)
+        free(pixels_);
+
+    width_ = w; height_ = h;
+    pixels_ = (Color*)calloc((size_t)w * h, sizeof(Color));
 
     uint8_t* row = (uint8_t*)calloc(row_stride, sizeof(uint8_t));
     for (uint32_t y = 0; y < h; ++y)
     {
         uint8_t* in = row;
-        if (fread(in, sizeof(uint8_t), row_stride, file) != row_stride) { free(row); fclose(file); return false; }
+        if (fread(in, sizeof(uint8_t), row_stride, file) != row_stride) 
+        { 
+            free(row); 
+            fclose(file); 
+            return false; 
+        }
 
         uint32_t dst_y = top_down ? y : (h - 1 - y);
-        Color* out = &Pixels[(size_t)dst_y * w];
+        Color* out = &pixels_[(size_t)dst_y * w];
 
         if (biBitCount == 32)
             for (uint32_t x = 0; x < w; ++x)

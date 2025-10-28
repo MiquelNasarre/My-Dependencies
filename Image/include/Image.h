@@ -20,10 +20,10 @@ class Image
 private:
 	// Private variables
 
-	Color* Pixels = nullptr;	// Pointer to the image pixels as a color array
+	Color* pixels_ = nullptr;	// Pointer to the image pixels as a color array
 
-	unsigned int width	= 0u;	// Stores the width of the image
-	unsigned int height	= 0u;	// Stores the height of the image
+	unsigned int width_	 = 0u;	// Stores the width of the image
+	unsigned int height_ = 0u;	// Stores the height of the image
 
 public:
 	// Constructors/Destructors
@@ -49,13 +49,13 @@ public:
 	// Getters
 
 	// Returns the pointer to the image pixels as a color array
-	Color* getPixels();
+	Color* pixels();
 
 	// Returns the image width
-	unsigned getWidth() const;
+	unsigned width() const;
 
 	// Returns the image height
-	unsigned getHeight() const;
+	unsigned height() const;
 
 	// Accessors
 
